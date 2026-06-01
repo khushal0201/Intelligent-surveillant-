@@ -37,6 +37,10 @@ detection_pipeline/out/_tmp_*/
 # They live under resources/CCTV Footage* and are reproducible from the source share.
 resources/CCTV Footage*/
 
+# --- Submission artifacts ---
+intelligent_surveillant_source.zip
+intelligent_surveillant.zip
+
 # OS
 .DS_Store
 Thumbs.db
