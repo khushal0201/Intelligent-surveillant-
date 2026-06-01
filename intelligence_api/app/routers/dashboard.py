@@ -32,8 +32,9 @@ def _annotated_url(cam_id: str) -> Optional[str]:
 
 def _clip_url(fname: str) -> str:
     if VIDEO_BASE_URL:
-        # Original raw clips live under resources/CCTV Footage*/
-        return f"{VIDEO_BASE_URL}/resources/CCTV%20Footage-20260529T160731Z-3-00144614ea/CCTV%20Footage/{fname}"
+        # GitHub-hosted small H.264 transcodes live under resources/clips/.
+        from urllib.parse import quote
+        return f"{VIDEO_BASE_URL}/resources/clips/{quote(fname)}"
     return f"/clips/{fname}"
 
 

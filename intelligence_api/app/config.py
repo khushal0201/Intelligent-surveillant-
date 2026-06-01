@@ -18,10 +18,12 @@ DEFAULT_EVENTS_GLOB = os.environ.get(
 )
 
 # Folder containing the original CCTV clips for the dashboard player.
-CLIPS_DIR = Path(os.environ.get(
-    "INTEL_CLIPS_DIR",
-    str(ROOT / "resources" / "CCTV Footage-20260529T160731Z-3-00144614ea" / "CCTV Footage"),
-))
+# Defaults to the GitHub-friendly H.264 transcodes under resources/clips/;
+# falls back to the original heavy folder if that's all the user has.
+_default_clips = ROOT / "resources" / "clips"
+if not _default_clips.exists():
+    _default_clips = ROOT / "resources" / "CCTV Footage-20260529T160731Z-3-00144614ea" / "CCTV Footage"
+CLIPS_DIR = Path(os.environ.get("INTEL_CLIPS_DIR", str(_default_clips)))
 
 # Folder containing pipeline-annotated clips (boxes, IDs, zones drawn on).
 # Falls back to CLIPS_DIR when an annotated file is missing.
