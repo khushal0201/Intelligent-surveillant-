@@ -1,0 +1,18 @@
+version: "3.9"
+services:
+  api:
+    build: ./intelligence_api
+    container_name: purplle_api
+    ports: ["8000:8000"]
+    environment:
+      INTEL_DB_URL: "sqlite:////app/intelligence_api/intel.db"
+      INTEL_BOOTSTRAP_GLOB: "/app/detection_pipeline/out/events_cam2_clip8.jsonl"
+      INTEL_CLIPS_DIR: "/app/resources/CCTV Footage-20260529T160731Z-3-00144614ea/CCTV Footage"
+      INTEL_STORE_ID: "ST1008"
+    volumes:
+      - ./detection_pipeline:/app/detection_pipeline:ro
+      - ./resources:/app/resources:ro
+      - api_data:/app/intelligence_api/uploads
+    restart: unless-stopped
+volumes:
+  api_data:

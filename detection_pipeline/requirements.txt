@@ -1,0 +1,12 @@
+tensorflow>=2.16
+keras>=3.3
+keras-cv>=0.9
+keras-hub>=0.16
+opencv-python>=4.9.0
+numpy>=1.26
+scipy>=1.11
+shapely>=2.0
+jsonschema>=4.21
+pandas>=2.2
+tqdm>=4.66
+pillow>=10.0

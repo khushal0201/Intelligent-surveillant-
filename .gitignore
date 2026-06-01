@@ -1,0 +1,42 @@
+# --- Python / IDE ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.venv/
+.env
+.vscode/
+.idea/
+
+# --- Local DB / generated state ---
+intelligence_api/intel.db
+intelligence_api/intel.db-journal
+intelligence_api/uploads/
+intelligence_api/app/static/.cache/
+
+# --- Detection pipeline noise ---
+detection_pipeline/out/run_*.log
+detection_pipeline/out/events_cam*.jsonl
+detection_pipeline/out/events_smoke.jsonl
+detection_pipeline/out/events_proto.jsonl
+detection_pipeline/out/events_onnx.jsonl
+detection_pipeline/out/events_v2.jsonl
+detection_pipeline/out/events.jsonl
+detection_pipeline/out/debug/
+detection_pipeline/out/preview*/
+detection_pipeline/out/_tmp_*/
+
+# Original CCTV clips are too big for GitHub (some > 100 MB).
+# They live under resources/CCTV Footage* and are reproducible from the source share.
+resources/CCTV Footage*/
+
+# OS
+.DS_Store
+Thumbs.db
