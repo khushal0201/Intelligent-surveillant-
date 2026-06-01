@@ -51,9 +51,9 @@ STORE_ID = os.environ.get("INTEL_STORE_ID", "ST1008")
 
 # Camera → clip filename map. The dashboard plays these via /clips/{name}.
 CAMERA_CLIPS = {
-    "CAM_ENTRY_03":    "CAM 1.mp4",
+    "CAM_SKINCARE_01": "CAM 1.mp4",
     "CAM_MAKEUP_02":   "CAM 2.mp4",
-    "CAM_SKINCARE_01": "CAM 3.mp4",
+    "CAM_ENTRY_03":    "CAM 3.mp4",
     "CAM_BACKROOM_04": "CAM 4.mp4",
     "CAM_BILLING_05":  "CAM 5.mp4",
 }
