@@ -68,11 +68,17 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--save-video-dir", default=None,
                    help="If set, write an annotated mp4 per camera into this directory "
                         "(<camera_id>.mp4) with detection boxes, IDs and zones drawn on each frame.")
+    p.add_argument("--preview-jpg-path", default=None,
+                   help="If set, the latest annotated frame is continuously written to this "
+                        "JPG file (atomic replace). Used by the upload UI for live preview.")
+    p.add_argument("--preview-every-n", type=int, default=4,
+                   help="Write the preview JPG every N processed frames.")
     return p.parse_args()
 
 
 def _draw_overlay(frame, fr, zoneset, camera_id, frame_count,
                   track_to_vid=None, vid_to_label=None,
+                  vid_to_demo=None,
                   recent_events=None):
     """Draw zones, entry line, person boxes (with STAFF/CUST label) and a
     rolling list of the last few fired events on a frame copy."""
@@ -103,6 +109,7 @@ def _draw_overlay(frame, fr, zoneset, camera_id, frame_count,
     # tracks
     track_to_vid = track_to_vid or {}
     vid_to_label = vid_to_label or {}
+    vid_to_demo = vid_to_demo or {}
     for tb in fr.tracks:
         x1, y1, x2, y2 = map(int, (tb.x1, tb.y1, tb.x2, tb.y2))
         vid = track_to_vid.get(tb.track_id)
@@ -111,7 +118,14 @@ def _draw_overlay(frame, fr, zoneset, camera_id, frame_count,
         color = (0, 0, 220) if is_staff else (255, 120, 0)  # red staff / blue cust
         cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
         vid_short = (vid or f"id{tb.track_id}")[-6:]
-        label = f"{role_str} {vid_short} {tb.conf:.2f}"
+        demo = vid_to_demo.get(vid) if vid else None
+        demo_str = ""
+        if demo:
+            g = demo.get("gender") or ""
+            a = demo.get("age_bucket") or ""
+            if g or a:
+                demo_str = f" {g}{('|' if g and a else '')}{a}"
+        label = f"{role_str}{demo_str} {vid_short} {tb.conf:.2f}"
         (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)
         cv2.rectangle(img, (x1, max(0, y1 - th - 8)), (x1 + tw + 6, y1),
                       color, -1)
@@ -120,20 +134,6 @@ def _draw_overlay(frame, fr, zoneset, camera_id, frame_count,
                     cv2.LINE_AA)
         cv2.circle(img, (int(tb.cx), int(tb.foot_y)), 4, (0, 0, 255), -1)
 
-    # title bar
-    cv2.putText(img, f"{camera_id}  frame {frame_count}  tracks={len(fr.tracks)}",
-                (10, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2,
-                cv2.LINE_AA)
-
-    # event ticker (most-recent at top)
-    if recent_events:
-        y = 60
-        cv2.rectangle(img, (5, 40), (560, 40 + 24 * len(recent_events) + 6),
-                      (0, 0, 0), -1)
-        for line in recent_events:
-            cv2.putText(img, line, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.55,
-                        (0, 255, 255), 2, cv2.LINE_AA)
-            y += 24
     return img
 
 
@@ -195,7 +195,8 @@ def main() -> None:
     # Reuse the Re-ID embedder for prototype mode — avoids loading a second
     # MobileNet, and the embedding space is consistent across the pipeline.
     staff = build_classifier(args.staff_model, prefer=args.staff_mode,
-                             embedder=gallery.embedder)
+                             embedder=gallery.embedder,
+                             store_id=store_id)
     proto_mode = args.staff_mode in ("prototype", "openclip")
     if proto_mode and args.staff_ref_dir:
         staff.add_reference_crops(args.staff_ref_dir)
@@ -243,6 +244,7 @@ def main() -> None:
         # cache staff decision per (camera, track_id) and is_staff per visitor
         staff_cache: dict[int, tuple[bool, float]] = {}
         is_staff_by_visitor: dict[str, bool] = {}
+        demo_by_visitor: dict[str, dict] = {}
         visitor_obs_count: dict[str, int] = {}
         track_to_vid: dict[int, str] = {}
         cur_camera_id["id"] = camera_id
@@ -257,7 +259,7 @@ def main() -> None:
         writer_path = None
         # When saving video, stream every source frame so the writer outputs
         # at native fps; detection still runs only every `stride` frames.
-        dense_stream = bool(args.save_video_dir)
+        dense_stream = bool(args.save_video_dir or args.preview_jpg_path)
         if args.save_video_dir:
             Path(args.save_video_dir).mkdir(parents=True, exist_ok=True)
             writer_path = Path(args.save_video_dir) / f"{camera_id}.mp4"
@@ -293,10 +295,11 @@ def main() -> None:
             if not run_logic:
                 # Carry-over frame: skip detection/staff/event work, just
                 # render the cached overlay onto the new background.
-                if args.save_video_dir or args.show:
+                if args.save_video_dir or args.show or args.preview_jpg_path:
                     vis = _draw_overlay(fr.frame, fr, zoneset, camera_id, frame_count,
                                         track_to_vid=track_to_vid,
                                         vid_to_label=is_staff_by_visitor,
+                                        vid_to_demo=demo_by_visitor,
                                         recent_events=list(recent_events))
                     if args.save_video_dir:
                         if writer is None:
@@ -304,6 +307,15 @@ def main() -> None:
                             fourcc = cv2.VideoWriter_fourcc(*"mp4v")
                             writer = cv2.VideoWriter(str(writer_path), fourcc, out_fps, (w, h))
                         writer.write(vis)
+                    if args.preview_jpg_path and frame_count % max(1, args.preview_every_n) == 0:
+                        try:
+                            prev_path = Path(args.preview_jpg_path)
+                            prev_path.parent.mkdir(parents=True, exist_ok=True)
+                            tmp = prev_path.with_suffix(".tmp.jpg")
+                            cv2.imwrite(str(tmp), vis, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
+                            tmp.replace(prev_path)
+                        except Exception:
+                            pass
                     if args.show:
                         if args.show_scale and args.show_scale != 1.0:
                             vis = cv2.resize(vis, None, fx=args.show_scale, fy=args.show_scale)
@@ -339,6 +351,10 @@ def main() -> None:
                         is_staff_flag = staff.live_vote(vid) or is_staff_only_cam
                     else:
                         is_staff_flag = True if is_staff_only_cam else False
+                    if hasattr(staff, "live_demographics"):
+                        d = staff.live_demographics(vid)
+                        if d.get("gender") or d.get("age_bucket"):
+                            demo_by_visitor[vid] = d
                 elif is_staff_only_cam:
                     is_staff_flag = True
                     staff.observe(vid, True)
@@ -348,6 +364,15 @@ def main() -> None:
                 else:
                     # Reuse the visitor's last vote without re-running the model.
                     is_staff_flag = is_staff_by_visitor.get(vid, False)
+                # Geometry override: anyone standing in a designated staff_zone
+                # (e.g. behind the cash counter) is staff regardless of CLIP;
+                # anyone standing in the customer-side BILLING queue strip is
+                # a customer for *this* observation regardless of CLIP, so
+                # BILLING_QUEUE_JOIN doesn't get suppressed by a stale STAFF vote.
+                if cur_zone in staff_zone_names:
+                    is_staff_flag = True
+                elif cam_role == "billing" and cur_zone == "BILLING":
+                    is_staff_flag = False
                 is_staff_by_visitor[vid] = is_staff_flag
 
                 # nx/ny were already computed above for the staff-zone test
@@ -361,7 +386,8 @@ def main() -> None:
                     emitter.on_entry_line(
                         visitor_id=vid, ts_ms=fr.timestamp_ms,
                         side=side, is_staff=is_staff_flag,
-                        confidence=tb.conf, is_reentry=is_reentry)
+                        confidence=tb.conf, is_reentry=is_reentry,
+                        demographics=demo_by_visitor.get(vid))
                     # mark gallery exit so a subsequent visit becomes REENTRY
                     if emitter.visitors[vid].inside_store is False and side < 0:
                         gallery.mark_exit(vid)
@@ -370,12 +396,14 @@ def main() -> None:
                 emitter.on_zone_observation(
                     visitor_id=vid, ts_ms=fr.timestamp_ms,
                     zone=cur_zone, is_staff=is_staff_flag,
-                    confidence=tb.conf, queue_depth=queue_depth)
+                    confidence=tb.conf, queue_depth=queue_depth,
+                    demographics=demo_by_visitor.get(vid))
 
-            if args.show or args.save_video_dir:
+            if args.show or args.save_video_dir or args.preview_jpg_path:
                 vis = _draw_overlay(fr.frame, fr, zoneset, camera_id, frame_count,
                                     track_to_vid=track_to_vid,
                                     vid_to_label=is_staff_by_visitor,
+                                    vid_to_demo=demo_by_visitor,
                                     recent_events=list(recent_events))
                 if args.save_video_dir:
                     if writer is None:
@@ -383,6 +411,15 @@ def main() -> None:
                         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
                         writer = cv2.VideoWriter(str(writer_path), fourcc, out_fps, (w, h))
                     writer.write(vis)
+                if args.preview_jpg_path and frame_count % max(1, args.preview_every_n) == 0:
+                    try:
+                        prev_path = Path(args.preview_jpg_path)
+                        prev_path.parent.mkdir(parents=True, exist_ok=True)
+                        tmp = prev_path.with_suffix(".tmp.jpg")
+                        cv2.imwrite(str(tmp), vis, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
+                        tmp.replace(prev_path)
+                    except Exception:
+                        pass
                 if args.show:
                     if args.show_scale and args.show_scale != 1.0:
                         vis = cv2.resize(vis, None, fx=args.show_scale, fy=args.show_scale)
@@ -419,6 +456,10 @@ def main() -> None:
         staff.finalize()
     final_is_staff = {vid: staff.vote(vid)
                       for vid in {e["visitor_id"] for e in buffered}}
+    final_demo: dict[str, dict] = {}
+    if hasattr(staff, "demographics"):
+        for vid in {e["visitor_id"] for e in buffered}:
+            final_demo[vid] = staff.demographics(vid)
     n_staff = sum(1 for v in final_is_staff.values() if v)
     print(f"[staff] {n_staff}/{len(final_is_staff)} visitors classified as staff")
 
@@ -426,6 +467,13 @@ def main() -> None:
     with out_path.open("w", encoding="utf-8") as out_f:
         for evt in buffered:
             evt["is_staff"] = bool(final_is_staff.get(evt["visitor_id"], evt["is_staff"]))
+            d = final_demo.get(evt["visitor_id"]) if final_demo else None
+            if d:
+                meta = evt.setdefault("metadata", {})
+                if d.get("gender"):
+                    meta["gender"] = d["gender"]
+                if d.get("age_bucket"):
+                    meta["age_bucket"] = d["age_bucket"]
             out_f.write(json.dumps(evt, ensure_ascii=False) + "\n")
     print(f"[done] {len(buffered)} events written to {out_path}")
 

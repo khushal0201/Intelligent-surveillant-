@@ -15,16 +15,17 @@ import pandas as pd
 class POSCorrelator:
     def __init__(self, csv_path: str | Path):
         df = pd.read_csv(csv_path, low_memory=False)
-        df = df[df["invoice_type"].astype(str).str.lower() == "sales"].copy()
+        if "invoice_type" in df.columns:
+            df = df[df["invoice_type"].astype(str).str.lower() == "sales"].copy()
         ts = pd.to_datetime(
             df["order_date"].astype(str) + " " + df["order_time"].astype(str),
             format="%d-%m-%Y %H:%M:%S", errors="coerce", utc=True,
         )
         df["ts"] = ts
         df = df.dropna(subset=["ts"]).sort_values("ts")
-        # de-dup by invoice (one transaction per invoice)
+        dedup_col = "invoice_number" if "invoice_number" in df.columns else "order_id"
         self.txn_times = (
-            df.drop_duplicates(subset=["invoice_number"])["ts"]
+            df.drop_duplicates(subset=[dedup_col])["ts"]
               .dt.tz_convert("UTC")
               .to_list()
         )

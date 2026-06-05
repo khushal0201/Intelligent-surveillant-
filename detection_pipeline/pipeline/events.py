@@ -52,10 +52,19 @@ class CameraEventEmitter:
     # ------------------------------------------------------------------
     def _emit(self, *, visitor_id: str, event_type: str, ts_ms: int,
               zone_id: Optional[str], dwell_ms: int, is_staff: bool,
-              confidence: float, queue_depth: Optional[int] = None) -> None:
+              confidence: float, queue_depth: Optional[int] = None,
+              demographics: Optional[dict] = None) -> None:
         st = self._state(visitor_id)
         st.session_seq += 1
         sku_zone = self.sku_zone_map.get(zone_id) if zone_id else None
+        meta = {
+            "queue_depth": queue_depth,
+            "sku_zone":    sku_zone,
+            "session_seq": st.session_seq,
+        }
+        if demographics:
+            meta["gender"] = demographics.get("gender")
+            meta["age_bucket"] = demographics.get("age_bucket")
         evt = {
             "event_id":   _new_event_id(),
             "store_id":   self.store_id,
@@ -67,11 +76,7 @@ class CameraEventEmitter:
             "dwell_ms":   int(dwell_ms),
             "is_staff":   bool(is_staff),
             "confidence": round(float(confidence), 4),
-            "metadata": {
-                "queue_depth": queue_depth,
-                "sku_zone":    sku_zone,
-                "session_seq": st.session_seq,
-            },
+            "metadata":   meta,
         }
         if self.schema_validator is not None:
             try:
@@ -90,7 +95,8 @@ class CameraEventEmitter:
     # ------------------------------------------------------------------
     def on_entry_line(self, visitor_id: str, ts_ms: int, side: float,
                       is_staff: bool, confidence: float,
-                      is_reentry: bool) -> None:
+                      is_reentry: bool,
+                      demographics: Optional[dict] = None) -> None:
         st = self._state(visitor_id)
         prev = st.last_entry_side
         st.last_entry_side = side
@@ -102,24 +108,28 @@ class CameraEventEmitter:
                 etype = "REENTRY" if is_reentry else "ENTRY"
                 self._emit(visitor_id=visitor_id, event_type=etype,
                            ts_ms=ts_ms, zone_id=None, dwell_ms=0,
-                           is_staff=is_staff, confidence=confidence)
+                           is_staff=is_staff, confidence=confidence,
+                           demographics=demographics)
             return
         if prev <= 0 and side > 0 and not st.inside_store:
             st.inside_store = True
             etype = "REENTRY" if is_reentry else "ENTRY"
             self._emit(visitor_id=visitor_id, event_type=etype,
                        ts_ms=ts_ms, zone_id=None, dwell_ms=0,
-                       is_staff=is_staff, confidence=confidence)
+                       is_staff=is_staff, confidence=confidence,
+                       demographics=demographics)
         elif prev >= 0 and side < 0 and st.inside_store:
             st.inside_store = False
             self._emit(visitor_id=visitor_id, event_type="EXIT",
                        ts_ms=ts_ms, zone_id=None, dwell_ms=0,
-                       is_staff=is_staff, confidence=confidence)
+                       is_staff=is_staff, confidence=confidence,
+                       demographics=demographics)
 
     def on_zone_observation(self, visitor_id: str, ts_ms: int,
                             zone: Optional[str], is_staff: bool,
                             confidence: float,
-                            queue_depth: Optional[int]) -> None:
+                            queue_depth: Optional[int],
+                            demographics: Optional[dict] = None) -> None:
         st = self._state(visitor_id)
         st.last_seen_ms = ts_ms
 
@@ -130,19 +140,22 @@ class CameraEventEmitter:
                 self._emit(visitor_id=visitor_id, event_type="ZONE_EXIT",
                            ts_ms=ts_ms, zone_id=st.current_zone,
                            dwell_ms=dwell, is_staff=is_staff,
-                           confidence=confidence)
-                if st.current_zone == "BILLING":
+                           confidence=confidence,
+                           demographics=demographics)
+                if st.current_zone == "BILLING" and not is_staff:
                     st.pending_billing_exit_ms = ts_ms
             if zone is not None:
                 self._emit(visitor_id=visitor_id, event_type="ZONE_ENTER",
                            ts_ms=ts_ms, zone_id=zone, dwell_ms=0,
-                           is_staff=is_staff, confidence=confidence)
-                if zone == "BILLING" and queue_depth is not None and queue_depth > 0:
+                           is_staff=is_staff, confidence=confidence,
+                           demographics=demographics)
+                if zone == "BILLING" and queue_depth is not None and queue_depth > 0 and not is_staff:
                     self._emit(visitor_id=visitor_id,
                                event_type="BILLING_QUEUE_JOIN",
                                ts_ms=ts_ms, zone_id="BILLING", dwell_ms=0,
                                is_staff=is_staff, confidence=confidence,
-                               queue_depth=queue_depth)
+                               queue_depth=queue_depth,
+                               demographics=demographics)
             st.current_zone = zone
             st.zone_enter_ms = ts_ms if zone else None
             st.last_dwell_emit_ms = ts_ms if zone else None
@@ -158,7 +171,8 @@ class CameraEventEmitter:
         if ts_ms - last >= DWELL_INTERVAL_MS:
             self._emit(visitor_id=visitor_id, event_type="ZONE_DWELL",
                        ts_ms=ts_ms, zone_id=zone, dwell_ms=elapsed,
-                       is_staff=is_staff, confidence=confidence)
+                       is_staff=is_staff, confidence=confidence,
+                       demographics=demographics)
             st.last_dwell_emit_ms = ts_ms
 
     def consume_pending_billing_exits(self, pos_correlator,
@@ -167,6 +181,9 @@ class CameraEventEmitter:
         left BILLING and had no nearby POS transaction."""
         for vid, st in self.visitors.items():
             if st.pending_billing_exit_ms is None:
+                continue
+            if is_staff_lookup.get(vid, False):
+                st.pending_billing_exit_ms = None
                 continue
             ts_iso = _ts_iso(self.clip_start_utc, st.pending_billing_exit_ms)
             t = datetime.strptime(ts_iso, "%Y-%m-%dT%H:%M:%SZ").replace(

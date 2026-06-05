@@ -1,0 +1,76 @@
+{
+  "store_id": "ST2009",
+  "store_name": "Store_2",
+  "city": "Unknown",
+  "_notes": [
+    "Floor plan: corner store with WALL UNITS 1-19 wrapping perimeter, two MK gondolas + cash counter in upper-centre, two makeup vanity units on the right, and storefront glazing at the bottom (entrance in middle).",
+    "Camera mapping (from frame inspection): entry 1.mp4 = CAM_ENTRY_01 (front door, glass storefront); entry 2.mp4 = CAM_ENTRY_02 (same camera, different day's footage); zone.mp4 = CAM_ZONE_03 (skincare wall corner where two perpendicular walls meet); billing_area.mp4 = CAM_BILLING_06 (cash counter + makeup vanity).",
+    "Polygons are NORMALISED image coordinates [0..1]. Each entry camera has an entry line near the top of the frame (door is at top, store interior is below)."
+  ],
+  "cameras": {
+    "CAM_ENTRY_01": {
+      "source_clip": "entry 1.mp4",
+      "role": "entry",
+      "description": "Front entrance, glass storefront at top of frame; store interior is below. User-supplied entry-gate quadrilateral (960x1080 px): A(348,676) B(637,618) C(709,849) D(333,902). Side AB is the door threshold (outer edge); CD is the inner edge on the wood floor. Inbound normal points downward into the store.",
+      "entry_line": {
+        "p1": [0.3625, 0.6259],
+        "p2": [0.6635, 0.5722],
+        "inbound_normal": [0.176, 0.984]
+      },
+      "zones": {
+        "ENTRY_GATE": [[0.3625, 0.6259], [0.6635, 0.5722], [0.7385, 0.7861], [0.3469, 0.8352]]
+      }
+    },
+    "CAM_ENTRY_02": {
+      "source_clip": "entry 2.mp4",
+      "role": "entry",
+      "description": "Front entrance (different day's footage from same camera position). Same gate polygon as CAM_ENTRY_01.",
+      "entry_line": {
+        "p1": [0.3625, 0.6259],
+        "p2": [0.6635, 0.5722],
+        "inbound_normal": [0.176, 0.984]
+      },
+      "zones": {
+        "ENTRY_GATE": [[0.3625, 0.6259], [0.6635, 0.5722], [0.7385, 0.7861], [0.3469, 0.8352]]
+      }
+    },
+    "CAM_ZONE_03": {
+      "source_clip": "zone.mp4",
+      "role": "floor",
+      "description": "Skincare wall corner: two perpendicular wall sections meet near the top-centre. Left wall holds Pilgrim/Good Vibes brands, right wall holds De-Tan/Dermaco/Minimalist/Aqualogica.",
+      "zones": {
+        "SKINCARE_LEFT":  [[0.02, 0.55], [0.45, 0.55], [0.40, 0.99], [0.05, 0.99]],
+        "SKINCARE_RIGHT": [[0.50, 0.55], [0.99, 0.55], [0.99, 0.99], [0.55, 0.99]],
+        "SKINCARE_WALL":  [[0.02, 0.55], [0.99, 0.55], [0.99, 0.99], [0.02, 0.99]]
+      }
+    },
+    "CAM_BILLING_06": {
+      "source_clip": "billing_area.mp4",
+      "role": "billing",
+      "description": "Cash counter island in middle of frame (960x1080). Polygons (corrected after frame review): BILLING_COUNTER = white POS-counter footprint (330,530)-(697,538)-(706,839)-(324,852); BILLING_STAFF_SIDE = strip at the bottom of the frame where staff operate the POS / scanner; BILLING = customer queue strip on the FAR side of the counter (top of frame) where shoppers approach to pay.",
+      "staff_zones": ["BILLING_STAFF_SIDE"],
+      "zones": {
+        "BILLING":            [[0.4292, 0.5000], [0.4354, 0.3259], [0.6333, 0.3241], [0.6552, 0.4833]],
+        "BILLING_COUNTER":    [[0.3438, 0.4907], [0.7260, 0.4981], [0.7354, 0.7769], [0.3375, 0.7889]],
+        "BILLING_STAFF_SIDE": [[0.3458, 0.9426], [0.8396, 0.9167], [0.8438, 0.9852], [0.3438, 0.9917]],
+        "MAKEUP_VANITY":      [[0.65, 0.05], [0.99, 0.05], [0.99, 0.45], [0.70, 0.45]]
+      }
+    }
+  },
+  "sku_zone_map": {
+    "ENTRY_GATE":      null,
+    "SKINCARE_LEFT":   "SKINCARE",
+    "SKINCARE_RIGHT":  "SKINCARE",
+    "SKINCARE_WALL":   "SKINCARE",
+    "BILLING":         "BILLING",
+    "BILLING_COUNTER": "BILLING",
+    "MAKEUP_VANITY":   "MAKEUP"
+  },
+  "clip_start_times_utc": {
+    "entry 1.mp4":      "2026-03-29T14:09:36Z",
+    "entry 2.mp4":      "2026-03-08T08:10:30Z",
+    "zone.mp4":         "2026-03-08T09:58:21Z",
+    "billing_area.mp4": "2026-03-08T12:58:20Z"
+  },
+  "staff_only_cameras": []
+}

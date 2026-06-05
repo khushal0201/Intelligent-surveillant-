@@ -104,6 +104,15 @@ class AnomaliesResponse(BaseModel):
     anomalies: List[Anomaly]
 
 
+class DemographicsResponse(BaseModel):
+    store_id: str
+    total_visitors: int
+    classified_visitors: int
+    gender: dict[str, int] = Field(default_factory=dict)  # e.g. {"F": 12, "M": 8}
+    age_buckets: dict[str, int] = Field(default_factory=dict)  # ordered low→high
+    age_bucket_order: List[str] = Field(default_factory=list)
+
+
 class StoreFeedHealth(BaseModel):
     store_id: str
     last_event_at: Optional[datetime]

@@ -124,26 +124,112 @@ of retail CV.
 using a few hand-labelled crops per class.
 
 **We shipped.** OpenCLIP zero-shot prototype classifier with:
-- text prompts (e.g. "a person wearing a Purplle staff uniform / lanyard"
-  for the staff class, "a customer browsing in a beauty store" for the
-  customer class),
-- a small set of reference image crops per class (`detection_pipeline/references/{staff,customer}/`),
-- a weighted blend (text 0.7, visual 0.3 — text dominates because the
-  visual reference set is small),
-- a `live_vote()` with a 3-frame minimum and a hysteresis margin
-  (`STAFF→CUST` requires `s > c + 0.02`; `STAFF` is sticky if
-  `s > c − 0.02`) to remove early-frame oscillation,
-- a per-visitor `finalize()` that pools embeddings over the whole track
-  for the canonical label written into events.
+- text prompts split into two pools (~30 staff prompts + ~50 customer
+  prompts), each carrying explicit visual cues — uniform colour,
+  silhouette, footwear, accessories — rather than abstract role labels;
+- a small set of reference image crops per class
+  (`detection_pipeline/references/{staff,customers}/`) that ground the
+  classifier in this store's actual appearance;
+- **per-store prompt gating** — Store 2's pink-uniform prompts are only
+  loaded when `store_id == "ST2009"`; loading them globally would have
+  pulled every pink-clad customer in Store 1 toward STAFF;
+- **asymmetric top-K text scoring** — staff k=3 (homogeneous prompts,
+  averaging stabilises), customer k=1 (diverse prompts, winner-take-all
+  lets the most-specific match drive the score). This was the largest
+  single accuracy bump;
+- a tunable text-vs-reference weight (`text_weight`, default 0.80) —
+  lowering it lets the few real reference photos dominate when text
+  prompts disagree on edge cases;
+- a `live_vote()` with a 3-frame minimum and asymmetric hysteresis
+  (`LIVE_FLIP_TO_STAFF` / `LIVE_FLIP_TO_CUST`) that removes the
+  early-frame oscillation from a noisy raw score;
+- a per-visitor `finalize()` that pools embeddings over the whole
+  track for the canonical label written into events;
+- an additional **geometry override** for the Store 2 billing camera
+  (≥80% time inside the staff-side polygon ⇒ STAFF) because, there,
+  geometry is unambiguous and the CLIP score is unnecessary.
 
 **Why we agreed in spirit but chose differently.** The AI was right
 that we needed *some* learned representation, not a hand-rolled
 heuristic. We just took the **zero-shot** path: no labels, no training
 loop, no model maintenance when uniforms change. The cost is ≈110 ms /
 crop on CPU, which is fine because classification runs once per visitor
-track (not per frame).
+track (not per frame) and most of the work is the encoder pass, which
+we batch.
+
+**The tuning journey is the interesting part.** The first version of the
+classifier produced this failure mode: real Store 1 staff (women in
+all-black uniform behind the counter) classified as customers, while
+some customers in dark clothing classified as staff. The fix was *not*
+"add more prompts" or "lower the threshold". It was a sequence of
+narrower, principled changes:
+
+1. Recognised that the customer prompt pool had ~50 diverse prompts
+   while the staff pool had ~22 narrow ones. Symmetric top-3 averaging
+   over diverse customer prompts was diluting the winner.
+2. Switched customer to k=1 (winner-take-all). Staff stayed at k=3.
+3. Pushed `text_weight` down to give the actual reference photos more
+   say in the score, then back up to 0.80 once the prompt pools were
+   balanced.
+4. Removed pose-based staff prompts ("phone in hand", "scanning
+   barcode") — every customer also holds a phone, so pose-based prompts
+   were false-positive engines.
+5. Added explicit customer prompts for the failure modes we kept
+   seeing: backpack on shoulder, open-toe footwear, pale top + jeans,
+   phone-at-face. Each prompt was written from a real misclassified
+   crop, not from imagination.
+6. Per-store gating, so Store 1 prompts never describe pink uniforms
+   and vice versa.
 
 VLM, used surgically — at the **classification** step, where prior
 knowledge of "what staff look like" is high-leverage — rather than
 trying to do detection or tracking with a VLM (where it would have been
 the wrong tool).
+
+---
+
+## Demographics: same VLM, separate heads
+
+The age and gender labels on the dashboard piggyback on the same
+OpenCLIP encoder pass:
+
+- **Gender:** mean-pooled female and male prompt sets (long hair /
+  ponytail / narrow shoulders / no Adam's apple vs. facial hair /
+  V-shape silhouette).
+- **Age:** seven buckets (`child / teen / 20s / 30s / 40s / 50s / 60+`)
+  with a per-bucket prompt list and a **per-bucket top-K (k=2)** mean
+  cosine, then softmax over buckets. The 20s and 30s buckets carry many
+  generic prompts (since most shoppers fall there), while child / 40s+ /
+  60+ require explicit cues (relative-height / wrinkles / grey hair) so
+  the system stays conservative on the long tails.
+
+Reusing the same image embedding for staff/customer + age + gender
+keeps total inference cost flat (~110 ms / crop) for three labels.
+
+---
+
+## Multi-store support
+
+**Options considered**
+
+| Option | Pros | Cons |
+|---|---|---|
+| Fork the pipeline per store | Independent code paths; per-store changes can't break the other store | Drift between forks; every fix has to be applied N times |
+| **One pipeline binary + `store_id` parameter** | Shared detector / tracker / Re-ID / schema; per-store behaviour is a small, inspectable surface | Have to think carefully about which knobs are per-store vs global |
+| Multi-tenant DB only, single global pipeline | Simplest API side | No way to encode per-store visual differences (uniform colour, billing geometry) |
+
+**AI suggestion.** Two separate processes with separate config files.
+
+**We shipped.** One detection pipeline + one API, each parameterised on
+`store_id`. Per-store layout JSONs (`store1_layout.json`,
+`store2_layout.json`) supply zone polygons, camera mappings, and the
+store id; the staff classifier factory routes prompt-pool selection on
+that id; the API's `STORES` registry maps it to the camera list,
+footage folder, layout path, and annotated-video folder.
+
+**Why.** Forking the pipeline would have meant every staff-prompt fix,
+every threshold tweak, every schema change had to be applied twice —
+and inevitably wouldn't be. Keeping it one binary forces the shared
+pieces to stay shared, and limits per-store divergence to a clearly
+labelled set of branches in the code. Adding Store 3 will be a layout
+JSON + one prompt list + one `STORES` entry — no code change.

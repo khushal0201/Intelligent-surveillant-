@@ -26,11 +26,11 @@ def bootstrap_from_jsonl() -> int:
 
     inserted = 0
     with session_scope() as db:
-        existing = db.execute(select(func.count(models.Event.event_id))).scalar() or 0
-        if existing > 0:
-            log.info("bootstrap_skip", extra={"event_count": existing})
-            return 0
-        seen: set[str] = set()
+        existing_ids = set(
+            db.execute(select(models.Event.event_id)).scalars().all()
+        )
+        log.info("bootstrap_start", extra={"event_count": len(existing_ids)})
+        seen: set[str] = set(existing_ids)
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         for p in paths:
             try:

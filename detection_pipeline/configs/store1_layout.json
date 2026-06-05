@@ -1,0 +1,98 @@
+{
+  "store_id": "ST1008",
+  "store_name": "Brigade_Bangalore",
+  "city": "Bangalore",
+  "_notes": [
+    "Floor plan: storefront on left (Existing Glass + BACKLIT door); SKINCARE wall on top (EB / TFS / GV / DermDoc / Minimalist / Aqualogica / Pilgrim / D&K); MAKEUP wall on bottom (Maybelline / Faces / Lakme / Swiss+ / Mars+Nybae / Alps / Loreal / Beauty); F.O.H in centre with Nail Unit + Fragrance Mini Bar + 2 Makeup vanity units; CASH COUNTER on right with ACCESSORIES + LED Panel.",
+    "Camera mapping: CAM 1 = skincare wall + F.O.H makeup vanity; CAM 2 = makeup wall + nail/fragrance unit; CAM 3 = front-door entry; CAM 5 = cash counter / billing. (CAM 4 backroom not provided in this batch.)",
+    "Polygons are NORMALISED image coordinates [0..1]."
+  ],
+  "cameras": {
+    "CAM_ENTRY_03": {
+      "source_clip": "CAM 3 - entry.mp4",
+      "role": "entry",
+      "description": "Front door (BACKLIT + Existing Glass storefront). User-supplied entry-gate quadrilateral (1920x1080 px): A(920,861) B(1152,510) C(1042,434) D(812,719). Long sides AB & CD are the door jambs; short sides DA (inside) and BC (outside) define the threshold. Crossing line goes mid(DA)->mid(BC); inbound is toward mid(DA) (down-and-left in image).",
+      "entry_line": {
+        "p1": [0.4510, 0.7315],
+        "p2": [0.5714, 0.4370],
+        "inbound_normal": [-0.378, 0.925]
+      },
+      "zones": {
+        "ENTRY_GATE": [[0.4792, 0.7972], [0.6000, 0.4722], [0.5427, 0.4019], [0.4229, 0.6657]]
+      }
+    },
+    "CAM_SKINCARE_01": {
+      "source_clip": "CAM 1 - zone.mp4",
+      "role": "floor",
+      "description": "Camera at upper-right corner of store. SKINCARE wall floor strip + F.O.H makeup vanity.",
+      "zones": {
+        "EB":          [[0.161, 0.860], [0.172, 0.876], [0.244, 0.830], [0.234, 0.811]],
+        "TFS":         [[0.172, 0.876], [0.183, 0.891], [0.255, 0.848], [0.244, 0.830]],
+        "GV":          [[0.183, 0.891], [0.194, 0.907], [0.265, 0.867], [0.255, 0.848]],
+        "DERMDOC":     [[0.194, 0.907], [0.205, 0.922], [0.276, 0.886], [0.265, 0.867]],
+        "MINIMALIST":  [[0.205, 0.922], [0.217, 0.937], [0.286, 0.904], [0.276, 0.886]],
+        "AQUALOGICA":  [[0.217, 0.937], [0.228, 0.953], [0.297, 0.923], [0.286, 0.904]],
+        "PILGRIM":     [[0.228, 0.953], [0.239, 0.968], [0.307, 0.942], [0.297, 0.923]],
+        "DK":          [[0.239, 0.968], [0.250, 0.983], [0.317, 0.960], [0.307, 0.942]],
+        "MAKEUP_VANITY": [[0.946, 0.677], [0.992, 0.744], [0.895, 0.989], [0.756, 0.969]],
+        "SKINCARE_WALL": [[0.161, 0.860], [0.250, 0.983], [0.827, 0.562], [0.800, 0.492]]
+      }
+    },
+    "CAM_MAKEUP_02": {
+      "source_clip": "CAM 2 - zone.mp4",
+      "role": "floor",
+      "description": "Camera at lower-left corner of store. MAKEUP wall + Fragrance/Nail unit.",
+      "zones": {
+        "BEAUTY":      [[0.265, 0.544], [0.291, 0.494], [0.343, 0.550], [0.327, 0.602]],
+        "LOREAL":      [[0.327, 0.602], [0.343, 0.550], [0.395, 0.605], [0.388, 0.660]],
+        "ALPS":        [[0.388, 0.660], [0.395, 0.605], [0.447, 0.661], [0.450, 0.717]],
+        "MARS_NYBAE":  [[0.450, 0.717], [0.447, 0.661], [0.499, 0.717], [0.512, 0.775]],
+        "SWISS":       [[0.512, 0.775], [0.499, 0.717], [0.551, 0.772], [0.573, 0.833]],
+        "LAKME":       [[0.573, 0.833], [0.551, 0.772], [0.603, 0.828], [0.635, 0.891]],
+        "FACES":       [[0.635, 0.891], [0.603, 0.828], [0.655, 0.884], [0.696, 0.949]],
+        "MAYBELLINE":  [[0.696, 0.949], [0.655, 0.884], [0.707, 0.939], [0.758, 1.000]],
+        "FRAGRANCE_NAIL": [[0.038, 0.611], [0.127, 0.562], [0.235, 0.943], [0.091, 0.977]],
+        "MAKEUP_WALL":  [[0.265, 0.544], [0.291, 0.494], [0.707, 0.939], [0.758, 1.000]],
+        "NAILS_AREA":   [[0.038, 0.611], [0.127, 0.562], [0.235, 0.943], [0.091, 0.977]]
+      }
+    },
+    "CAM_BILLING_05": {
+      "source_clip": "CAM 5 - billing.mp4",
+      "role": "billing",
+      "description": "Cash counter mid-frame. HAIRCARE on left, ACCESSORIES on right.",
+      "staff_zones": ["BILLING_STAFF_SIDE"],
+      "zones": {
+        "BILLING":            [[0.30, 0.55], [0.78, 0.55], [0.78, 1.00], [0.28, 1.00]],
+        "BILLING_STAFF_SIDE": [[0.45, 0.00], [0.80, 0.00], [0.80, 0.22], [0.45, 0.22]],
+        "HAIRCARE":           [[0.00, 0.05], [0.30, 0.05], [0.30, 1.00], [0.00, 1.00]],
+        "ACCESSORIES":        [[0.78, 0.40], [1.00, 0.40], [1.00, 1.00], [0.78, 1.00]]
+      }
+    }
+  },
+  "sku_zone_map": {
+    "ENTRY_GATE":      null,
+    "SKINCARE_WALL":   "SKINCARE",
+    "MAKEUP_WALL":     "MAKEUP",
+    "MAKEUP_VANITY":   "MAKEUP",
+    "FRAGRANCE_NAIL":  "FRAGRANCE",
+    "HAIRCARE":        "HAIRCARE",
+    "ACCESSORIES":     "ACCESSORIES",
+    "BILLING":         "BILLING",
+    "BEAUTY":      "MAKEUP",
+    "LOREAL":      "MAKEUP",
+    "ALPS":        "MAKEUP",
+    "MARS_NYBAE":  "MAKEUP",
+    "SWISS":       "MAKEUP",
+    "LAKME":       "MAKEUP",
+    "FACES":       "MAKEUP",
+    "MAYBELLINE":  "MAKEUP",
+    "NAILS_AREA":  "FRAGRANCE"
+  },
+  "clip_start_times_utc": {
+    "CAM 1 - zone.mp4":    "2026-04-10T14:39:52Z",
+    "CAM 2 - zone.mp4":    "2026-04-10T14:39:50Z",
+    "CAM 3 - entry.mp4":   "2026-04-10T14:39:50Z",
+    "CAM 5 - billing.mp4": "2026-04-10T14:39:48Z"
+  },
+  "staff_only_cameras": []
+}

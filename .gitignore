@@ -37,6 +37,14 @@ detection_pipeline/out/_tmp_*/
 # They live under resources/CCTV Footage* and are reproducible from the source share.
 resources/CCTV Footage*/
 
+# Source-share zip archives of the multi-store clips (kept locally for backup
+# only; the unzipped + compressed mp4s under updated_resources/Store {1,2}/
+# are what the dashboard actually uses).
+updated_resources/*.zip
+
+# Local scratch frames extracted for zone calibration
+tmp_frames/
+
 # --- Submission artifacts ---
 intelligent_surveillant_source.zip
 intelligent_surveillant.zip

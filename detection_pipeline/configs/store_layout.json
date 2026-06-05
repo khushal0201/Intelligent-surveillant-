@@ -12,15 +12,14 @@
     "CAM_ENTRY_03": {
       "source_clip": "CAM 3.mp4",
       "role": "entry",
-      "description": "Front door (BACKLIT + Existing Glass storefront). Threshold runs diagonally from upper-left to lower-right; inside is up-and-left.",
+      "description": "Front door (BACKLIT + Existing Glass storefront). User-supplied entry-gate quadrilateral (1920x1080 px): A(920,861) B(1152,510) C(1042,434) D(812,719). Long sides AB & CD are the door jambs; short sides DA (inside) and BC (outside) define the threshold. Crossing line goes mid(DA)->mid(BC); inbound is toward mid(DA) (down-and-left in image).",
       "entry_line": {
-        "p1": [0.42, 0.18],
-        "p2": [0.68, 0.55],
-        "inbound_normal": [-0.82, 0.57]
+        "p1": [0.4510, 0.7315],
+        "p2": [0.5714, 0.4370],
+        "inbound_normal": [-0.378, 0.925]
       },
       "zones": {
-        "ENTRY_VESTIBULE": [[0.145, 0.886], [0.176, 0.983], [0.825, 0.465], [0.869, 0.499]],
-        "ENTRY_RIGHT":     [[0.918, 0.647], [0.974, 0.688], [0.709, 0.977], [0.868, 0.986]]
+        "ENTRY_GATE": [[0.4792, 0.7972], [0.6000, 0.4722], [0.5427, 0.4019], [0.4229, 0.6657]]
       }
     },
     "CAM_SKINCARE_01": {
@@ -80,8 +79,7 @@
     }
   },
   "sku_zone_map": {
-    "ENTRY_VESTIBULE": null,
-    "ENTRY_RIGHT":     null,
+    "ENTRY_GATE":      null,
     "SKINCARE_WALL":   "SKINCARE",
     "MAKEUP_WALL":     "MAKEUP",
     "MAKEUP_VANITY":   "MAKEUP",

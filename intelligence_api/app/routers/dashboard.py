@@ -4,13 +4,14 @@ timestamps relative to that camera's first event so the player can sync.
 from __future__ import annotations
 import os
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 from .. import models
 from ..db import get_db
-from ..config import CAMERA_CLIPS, STORE_ID, ANNOTATED_DIR
+from ..config import CAMERA_CLIPS, STORE_ID, ANNOTATED_DIR, STORES
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -18,6 +19,21 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 # (GitHub raw, S3, etc.) so the small Space container does not need to ship
 # the heavy mp4 assets. Trailing slash optional.
 VIDEO_BASE_URL = (os.environ.get("VIDEO_BASE_URL") or "").rstrip("/")
+
+
+def _annotated_url_store(store_id: str, cam_id: str) -> Optional[str]:
+    """Public URL for a store-specific annotated mp4."""
+    cfg = STORES.get(store_id)
+    if cfg:
+        local = Path(cfg["annotated_dir"]) / f"{cam_id}.mp4"
+        if local.exists():
+            return f"/annotated_{store_id}/{cam_id}.mp4"
+    if (ANNOTATED_DIR / f"{cam_id}.mp4").exists():
+        return f"/annotated/{cam_id}.mp4"
+    if VIDEO_BASE_URL:
+        sub = "annotated_store1" if store_id == "ST1008" else "annotated_store2" if store_id == "ST2009" else "annotated"
+        return f"{VIDEO_BASE_URL}/detection_pipeline/out/{sub}/{cam_id}.mp4"
+    return None
 
 
 def _annotated_url(cam_id: str) -> Optional[str]:
@@ -30,6 +46,16 @@ def _annotated_url(cam_id: str) -> Optional[str]:
     return None
 
 
+def _clip_url_store(store_id: str, fname: str) -> str:
+    """Path to raw clip — store footage lives outside the static mount,
+    so we serve it via /raw/{store_id}/{filename} (mounted in main.py)."""
+    from urllib.parse import quote
+    if VIDEO_BASE_URL:
+        sub = "Store%201" if store_id == "ST1008" else "Store%202"
+        return f"{VIDEO_BASE_URL}/updated_resources/{sub}/{quote(fname)}"
+    return f"/raw/{store_id}/{quote(fname)}"
+
+
 def _clip_url(fname: str) -> str:
     if VIDEO_BASE_URL:
         # GitHub-hosted small H.264 transcodes live under resources/clips/.
@@ -38,24 +64,68 @@ def _clip_url(fname: str) -> str:
     return f"/clips/{fname}"
 
 
-@router.get("/cameras")
-def cameras(db: Session = Depends(get_db)):
-    """Return camera list, clip URL, and the first/last event ts per camera
-    so the front-end can compute video offsets."""
+@router.get("/stores")
+def stores_list(db: Session = Depends(get_db)):
+    """Return the list of stores with metadata + event counts."""
     out = []
-    for cam_id, fname in CAMERA_CLIPS.items():
-        first, last = db.execute(
-            select(func.min(models.Event.timestamp), func.max(models.Event.timestamp))
-            .where(models.Event.camera_id == cam_id)
-        ).one()
+    for sid, cfg in STORES.items():
+        n = db.execute(
+            select(func.count(models.Event.event_id))
+            .where(models.Event.store_id == sid)
+        ).scalar() or 0
         out.append({
-            "camera_id": cam_id,
-            "clip_url": _clip_url(fname),
-            "annotated_url": _annotated_url(cam_id),
-            "first_event_ts": first.isoformat() + "Z" if first else None,
-            "last_event_ts":  last.isoformat() + "Z" if last else None,
+            "store_id": sid,
+            "name": cfg["name"],
+            "city": cfg.get("city", ""),
+            "cameras": list(cfg["cameras"].keys()),
+            "event_count": int(n),
         })
-    return {"store_id": STORE_ID, "cameras": out}
+    return {"stores": out}
+
+
+@router.get("/cameras")
+def cameras(store_id: Optional[str] = None, db: Session = Depends(get_db)):
+    """Return camera list for one store (or all). Includes clip + annotated
+    URLs and the first/last event ts per camera so the front-end can compute
+    video offsets."""
+    out = []
+    if store_id and store_id in STORES:
+        store_iter = [(store_id, STORES[store_id])]
+    elif store_id:
+        raise HTTPException(404, f"unknown store_id {store_id}")
+    else:
+        # Fall back to legacy flat CAMERA_CLIPS for backwards compat.
+        for cam_id, fname in CAMERA_CLIPS.items():
+            first, last = db.execute(
+                select(func.min(models.Event.timestamp), func.max(models.Event.timestamp))
+                .where(models.Event.camera_id == cam_id)
+            ).one()
+            out.append({
+                "camera_id": cam_id,
+                "store_id": STORE_ID,
+                "clip_url": _clip_url(fname),
+                "annotated_url": _annotated_url(cam_id),
+                "first_event_ts": first.isoformat() + "Z" if first else None,
+                "last_event_ts":  last.isoformat() + "Z" if last else None,
+            })
+        return {"store_id": STORE_ID, "cameras": out}
+
+    for sid, cfg in store_iter:
+        for cam_id, fname in cfg["cameras"].items():
+            first, last = db.execute(
+                select(func.min(models.Event.timestamp), func.max(models.Event.timestamp))
+                .where(models.Event.camera_id == cam_id)
+                .where(models.Event.store_id == sid)
+            ).one()
+            out.append({
+                "camera_id": cam_id,
+                "store_id": sid,
+                "clip_url": _clip_url_store(sid, fname),
+                "annotated_url": _annotated_url_store(sid, cam_id),
+                "first_event_ts": first.isoformat() + "Z" if first else None,
+                "last_event_ts":  last.isoformat() + "Z" if last else None,
+            })
+    return {"store_id": store_id, "cameras": out}
 
 
 @router.get("/events")

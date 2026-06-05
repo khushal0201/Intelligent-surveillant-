@@ -26,3 +26,8 @@ def heatmap(store_id: str, db: Session = Depends(get_db)):
 @router.get("/stores/{store_id}/anomalies", response_model=schemas.AnomaliesResponse)
 def anomalies(store_id: str, db: Session = Depends(get_db)):
     return analytics.compute_anomalies(db, store_id)
+
+
+@router.get("/stores/{store_id}/demographics", response_model=schemas.DemographicsResponse)
+def demographics(store_id: str, db: Session = Depends(get_db)):
+    return analytics.compute_demographics(db, store_id)

@@ -286,3 +286,58 @@ def compute_anomalies(db: Session, store_id: str) -> schemas.AnomaliesResponse:
         ))
 
     return schemas.AnomaliesResponse(store_id=store_id, anomalies=out)
+
+
+# ---------------- demographics ----------------
+
+_AGE_BUCKET_ORDER = ["child", "teen", "20s", "30s", "40s", "50s", "60+"]
+
+
+def compute_demographics(db: Session, store_id: str) -> schemas.DemographicsResponse:
+    """Aggregate gender + age buckets per non-staff visitor.
+
+    Each visitor contributes once. We pick the most-recent non-null tag the
+    pipeline stamped into ``metadata`` (final-pass values overwrite live ones
+    because they're written last in the JSONL bootstrap order).
+    """
+    rows = db.execute(
+        select(models.Event.visitor_id, models.Event.timestamp, models.Event.meta)
+        .where(models.Event.store_id == store_id,
+               models.Event.is_staff == False)  # noqa: E712
+        .order_by(models.Event.timestamp)
+    ).all()
+
+    per_visitor_gender: dict[str, str] = {}
+    per_visitor_age: dict[str, str] = {}
+    all_visitors: set[str] = set()
+    for vid, _ts, meta in rows:
+        all_visitors.add(vid)
+        if not meta:
+            continue
+        g = meta.get("gender")
+        a = meta.get("age_bucket")
+        if g:
+            per_visitor_gender[vid] = g
+        if a:
+            per_visitor_age[vid] = a
+
+    gender_counts: dict[str, int] = defaultdict(int)
+    for g in per_visitor_gender.values():
+        gender_counts[g] += 1
+
+    age_counts: dict[str, int] = {b: 0 for b in _AGE_BUCKET_ORDER}
+    for a in per_visitor_age.values():
+        if a in age_counts:
+            age_counts[a] += 1
+        else:
+            age_counts[a] = age_counts.get(a, 0) + 1
+
+    classified = len(set(per_visitor_gender) | set(per_visitor_age))
+    return schemas.DemographicsResponse(
+        store_id=store_id,
+        total_visitors=len(all_visitors),
+        classified_visitors=classified,
+        gender=dict(gender_counts),
+        age_buckets=age_counts,
+        age_bucket_order=_AGE_BUCKET_ORDER,
+    )

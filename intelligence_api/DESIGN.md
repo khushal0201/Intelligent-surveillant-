@@ -59,6 +59,10 @@ Putting a file between the two halves was deliberate:
   is the single source of truth, validated at write time in the pipeline
   and mirrored by Pydantic v2 on the API. A change has to update both —
   that's a feature, not a bug.
+- **Bootstrap is small and obvious.** One file per store, list them in
+  `INTEL_BOOTSTRAP_GLOB`, done. Smoke runs and old experiments are kept
+  out of the default glob so a fresh restart never re-ingests stale
+  data; if you want them, set the env var.
 
 Cost: events lag actual frames by however long the pipeline takes
 (offline, not realtime). Acceptable for a retail-analytics dashboard.
@@ -166,6 +170,68 @@ Two containers, one Dockerfile each:
 
 ---
 
+## 10. Staff classifier — the part the user actually sees
+
+Staff vs customer is the most user-visible label in the dashboard, so
+it's worth describing how the math actually decides. The classifier
+lives in `detection_pipeline/pipeline/staff.py` (`OpenCLIPPrototypeStaff`).
+
+For each person crop the model produces an L2-normalised CLIP embedding
+`emb`. Then it computes two raw scores:
+
+```
+s_text = top-K-mean(cosine(emb, staff_prompt_embeddings),  k=3)
+c_text = top-K-mean(cosine(emb, customer_prompt_embeddings), k=1)
+
+s_ref  = cosine(emb, mean(staff_reference_anchors))
+c_ref  = cosine(emb, mean(customer_reference_anchors))
+
+s = a · s_text + (1-a) · s_ref         # a = text_weight, default 0.80
+c = a · c_text + (1-a) · c_ref
+```
+
+Three design choices in there are non-obvious:
+
+1. **Asymmetric top-K** (staff k=3, customer k=1). Staff prompts are
+   homogeneous — they all describe the same uniform — so a 3-of-N
+   average is stable and noise-resistant. Customer prompts are
+   intentionally diverse (kurtis, dresses, backpacks, grey t-shirts,
+   pale tops, men in jeans, …) — for any specific person only one or
+   two prompts truly match. Averaging top-3 dilutes the winner with
+   weak matches; top-1 (winner-take-all) lets the most-specific prompt
+   drive the customer score. This was the single biggest accuracy
+   bump in the project.
+2. **Per-store prompt gating.** The factory takes a `store_id` and
+   only loads pink-uniform prompts for `ST2009`. If we'd loaded both
+   pink and black prompts globally, every pink-clothed customer in
+   Store 1 would have been pulled toward STAFF.
+3. **Reference anchors with adjustable weight.** Two real Store 1 staff
+   photos in `references/staff/` ground the classifier in actual store
+   appearance, blended at `(1 - text_weight)`. Tuning that one knob
+   trades CLIP's broad text knowledge against this store's specific
+   uniform.
+
+Decisions on top of `(s, c)`:
+
+| Function | Rule | When |
+|---|---|---|
+| `live_vote()` (overlay) | needs `LIVE_MIN_OBS=3` frames; flips into STAFF if `s > c + LIVE_FLIP_TO_STAFF`, out of STAFF if `c > s + LIVE_FLIP_TO_CUST` (asymmetric / hysteresis) | per frame on the dashboard |
+| `finalize()` (event row) | `is_staff = s > c + margin` over a per-visitor mean of all crops | once per visitor at end-of-track |
+
+The asymmetric live thresholds exist because raw `(s, c)` wobbles by
+~0.01 frame-to-frame; without hysteresis the overlay flips rapidly.
+The final-pass `margin` is set conservatively (default 0.0) and pools
+embeddings over the whole track, so a few flickering frames don't
+change the canonical label written into events.
+
+> **Geometry override.** For the Store 2 billing camera we additionally
+> tag any track that spent ≥80% of its time in `BILLING_STAFF_SIDE`
+> as STAFF regardless of the CLIP score. Geometry is an unambiguous
+> signal there (customers physically can't stand inside the till
+> island), so we use it.
+
+---
+
 ## AI-Assisted Decisions
 
 Three places where an LLM materially shaped the design, and how the
@@ -212,3 +278,37 @@ exchange landed.
   suggestion to use Tailwind CDN + Inter / JetBrains Mono — that part
   was clearly the right call and lifted the look beyond what we'd have
   written by hand.
+
+### D. Staff classifier — symmetric averaging vs asymmetric top-K
+
+- **AI suggested.** Use a symmetric top-K mean (k=3 for both staff and
+  customer prompts) so "the score is robust to a single noisy prompt".
+- **We chose.** k=3 for staff, k=1 (winner-take-all) for customer.
+- **Why.** Symmetric top-K assumes both prompt pools have the same
+  *internal coherence*. They don't. Staff prompts all describe the same
+  black uniform — averaging the top 3 stabilises the score. Customer
+  prompts are intentionally diverse (women in kurtis, men in grey
+  t-shirts, dresses, backpacks, pale tops) because customers *are*
+  diverse. For any specific person, only the one or two prompts that
+  match their actual appearance are informative; the rest are noise.
+  Averaging top-3 dilutes the winner. Switching customer to k=1
+  (single best prompt drives the score) was the largest single
+  accuracy improvement in the staff classifier — the AI's symmetric
+  default was correct *in general* but wrong *for asymmetric pool
+  semantics*. The lesson: top-K should match the structure of the
+  data, not be set by ritual.
+
+### E. Multi-store: copy the pipeline twice vs. parameterise
+
+- **AI suggested.** Fork the detection pipeline per store and run two
+  separate processes with different code paths.
+- **We chose.** One pipeline binary + a `store_id` plumbed from the
+  layout JSON through the classifier factory. Per-store behaviour
+  (pink uniform prompts for Store 2, billing-zone geometry override
+  for Store 2) is gated on that single id.
+- **Why.** Copy-and-paste means every prompt fix and every threshold
+  tweak has to be applied twice — and won't be. One binary forces the
+  shared pieces (detector, tracker, Re-ID, age/gender heads, schema)
+  to stay shared, and limits per-store divergence to a small,
+  inspectable surface. Adding Store 3 will be a new layout JSON + one
+  prompt list + one entry in `STORES`, no code changes.
