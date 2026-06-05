@@ -20,16 +20,19 @@ RUN pip install -r /app/intelligence_api/requirements.txt
 
 # Copy what the API actually serves.
 COPY intelligence_api /app/intelligence_api
-COPY detection_pipeline/out/events_full.jsonl /app/detection_pipeline/out/events_full.jsonl
-# Annotated mp4s are intentionally NOT copied — VIDEO_BASE_URL points at
-# GitHub raw so the Space stays small.
+COPY detection_pipeline/out/events_store1_full.jsonl /app/detection_pipeline/out/events_store1_full.jsonl
+COPY detection_pipeline/out/events_store2_full.jsonl /app/detection_pipeline/out/events_store2_full.jsonl
+COPY detection_pipeline/schema /app/detection_pipeline/schema
+# Annotated mp4s and raw clips are intentionally NOT copied — VIDEO_BASE_URL
+# points at GitHub raw so the Space image stays small.
 
 ENV PYTHONPATH=/app \
-    INTEL_BOOTSTRAP_GLOB=/app/detection_pipeline/out/events_full.jsonl \
+    INTEL_BOOTSTRAP_GLOB="/app/detection_pipeline/out/events_store1_full.jsonl;/app/detection_pipeline/out/events_store2_full.jsonl" \
     INTEL_DB_URL=sqlite:////tmp/intel.db \
     INTEL_UPLOAD_DIR=/tmp/uploads \
     INTEL_ANNOTATED_DIR=/tmp/annotated \
     INTEL_CLIPS_DIR=/tmp/clips \
+    VIDEO_BASE_URL=https://raw.githubusercontent.com/khushal0201/Intelligent-surveillant-/main \
     PORT=7860
 
 EXPOSE 7860

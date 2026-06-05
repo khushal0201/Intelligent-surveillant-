@@ -31,7 +31,7 @@ def _annotated_url_store(store_id: str, cam_id: str) -> Optional[str]:
     if (ANNOTATED_DIR / f"{cam_id}.mp4").exists():
         return f"/annotated/{cam_id}.mp4"
     if VIDEO_BASE_URL:
-        sub = "annotated_store1" if store_id == "ST1008" else "annotated_store2" if store_id == "ST2009" else "annotated"
+        sub = "annotated_store1_full" if store_id == "ST1008" else "annotated_store2_full" if store_id == "ST2009" else "annotated"
         return f"{VIDEO_BASE_URL}/detection_pipeline/out/{sub}/{cam_id}.mp4"
     return None
 
@@ -51,7 +51,11 @@ def _clip_url_store(store_id: str, fname: str) -> str:
     so we serve it via /raw/{store_id}/{filename} (mounted in main.py)."""
     from urllib.parse import quote
     if VIDEO_BASE_URL:
-        sub = "Store%201" if store_id == "ST1008" else "Store%202"
+        sub = (
+            "Store%201-20260602T101818Z-3-001ec38db8/Store%201"
+            if store_id == "ST1008"
+            else "Store%202-20260602T101819Z-3-001099f208/Store%202"
+        )
         return f"{VIDEO_BASE_URL}/updated_resources/{sub}/{quote(fname)}"
     return f"/raw/{store_id}/{quote(fname)}"
 
