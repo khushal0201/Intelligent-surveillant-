@@ -14,6 +14,8 @@ license: mit
 Offline-first retail computer-vision pipeline + intelligence API for store **ST1008**
 (Purplle Tech Challenge submission).
 
+**Live demo:** [Intelligent Surveillant on Hugging Face Spaces](https://huggingface.co/spaces/khushal201/intelligent_surveillant)
+
 The Hugging Face Space hosts only the **API + dashboard**. Annotated H.264 mp4s
 are streamed directly from the GitHub repo's raw URLs (configured via the
 `VIDEO_BASE_URL` env var) so the container stays small.
@@ -38,10 +40,10 @@ canonical outputs are:
 
 | Store      | Path                                                  | Cameras                                                      |
 | ---------- | ----------------------------------------------------- | ------------------------------------------------------------ |
-| ST1008 (Store 1) | `detection_pipeline/out/events_store1_full.jsonl` | `CAM_ENTRY_03`, `CAM_SKINCARE_01`, `CAM_MAKEUP_02`, `CAM_BILLING_05` |
-| ST2009 (Store 2) | `detection_pipeline/out/events_store2_full.jsonl` | `CAM_ENTRY_01`, `CAM_ENTRY_02`, `CAM_ZONE_03`, `CAM_BILLING_06`     |
+| ST1008 (Store 1) | [`detection_pipeline/out/events_store1_full.jsonl`](detection_pipeline/out/events_store1_full.jsonl) | `CAM_ENTRY_03`, `CAM_SKINCARE_01`, `CAM_MAKEUP_02`, `CAM_BILLING_05` |
+| ST2009 (Store 2) | [`detection_pipeline/out/events_store2_full.jsonl`](detection_pipeline/out/events_store2_full.jsonl) | `CAM_ENTRY_01`, `CAM_ENTRY_02`, `CAM_ZONE_03`, `CAM_BILLING_06`     |
 
-Schema: `detection_pipeline/schema/event_schema.json` (Draft-7, validated on
+Schema: [`detection_pipeline/schema/event_schema.json`](detection_pipeline/schema/event_schema.json) (Draft-7, validated on
 every emit). Each row carries `store_id`, `camera_id`, `visitor_id`,
 `event_type`, `timestamp`, `zone_id`, `dwell_ms`, `is_staff`, `confidence`,
 and a `metadata` block with `gender`, `age_bucket`, `sku_zone`, `queue_depth`,
@@ -49,8 +51,8 @@ and `session_seq`.
 
 Annotated H.264 review videos sit alongside the events:
 
-- `detection_pipeline/out/annotated_store1_full/CAM_*.mp4`
-- `detection_pipeline/out/annotated_store2_full/CAM_*.mp4`
+- [`detection_pipeline/out/annotated_store1_full/`](detection_pipeline/out/annotated_store1_full)
+- [`detection_pipeline/out/annotated_store2_full/`](detection_pipeline/out/annotated_store2_full)
 
 Everything else (smoke runs, per-camera ablation files, calibration jpegs,
 older annotated dirs) has been pruned — only the two `*_full.jsonl` files and
